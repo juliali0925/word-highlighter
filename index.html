@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Highlighter — Learn Vocabulary While You Browse</title>
+  <meta name="description" content="Word Highlighter automatically highlights your vocabulary words on every webpage. Track frequency, see context sentences, and mark words mastered — free Chrome extension.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       Design Tokens — Langeek / Learn English Vocabulary system
+       ============================================================ */
+    :root {
+      /* Color */
+      --color-text-primary:   #0000ee;
+      --color-text-secondary: #0a0a0a;
+      --color-text-tertiary:  #212529;
+      --color-text-muted:     #666666;
+      --color-surface-base:   #000000;
+      --color-surface-muted:  #ffffff;
+      --color-surface-raised: #0e4aa4;
+      --color-surface-strong: #e4e4f2;
+
+      /* Typography */
+      --font-family: 'Noto Sans', Helvetica, sans-serif;
+      --font-size-xs:  9px;
+      --font-size-sm:  10.5px;
+      --font-size-md:  12px;
+      --font-size-lg:  13.5px;
+      --font-size-xl:  18px;
+      --font-size-2xl: 28px;
+      --font-size-3xl: 40px;
+      --font-size-4xl: 45px;
+      --font-weight-base: 400;
+      --line-height-base: 18px;
+
+      /* Spacing */
+      --space-1: 3px;
+      --space-2: 6px;
+      --space-3: 9px;
+      --space-4: 12px;
+      --space-5: 15px;
+      --space-6: 18px;
+      --space-7: 24px;
+      --space-8: 36px;
+
+      /* Radius */
+      --radius-xs: 9px;
+      --radius-sm: 18px;
+      --radius-md: 9999px;
+
+      /* Shadow */
+      --shadow-1: rgba(0,0,0,0) 0px 0px 0px 0px,
+                  rgba(0,0,0,0) 0px 0px 0px 0px,
+                  rgba(0,0,0,0.08) 0px 4px 16px 0px;
+      --shadow-2: rgba(0,0,0,0) 0px 0px 0px 0px,
+                  rgba(0,0,0,0) 0px 0px 0px 0px,
+                  rgba(0,0,0,0.14) 0px 8px 28px 0px;
+
+      /* Motion */
+      --motion-instant: 200ms;
+      --motion-fast:    300ms;
+    }
+
+    /* ============================================================
+       Reset
+       ============================================================ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-family);
+      font-size: var(--font-size-md);
+      font-weight: var(--font-weight-base);
+      line-height: var(--line-height-base);
+      color: var(--color-text-tertiary);
+      background: var(--color-surface-muted);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ============================================================
+       Global elements
+       ============================================================ */
+    a {
+      color: var(--color-text-primary);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      transition: opacity var(--motion-instant) ease;
+    }
+    a:hover  { opacity: 0.72; }
+    a:focus-visible {
+      outline: 2px solid var(--color-text-primary);
+      outline-offset: 3px;
+      border-radius: var(--radius-xs);
+    }
+
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 var(--space-7);
+    }
+
+    /* ============================================================
+       Buttons
+       ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      font-family: var(--font-family);
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background var(--motion-instant) ease,
+                  opacity   var(--motion-instant) ease,
+                  transform var(--motion-instant) ease;
+      border-radius: var(--radius-xs);
+      padding: var(--space-3) var(--space-6);
+      font-size: var(--font-size-md);
+      line-height: 1;
+    }
+    .btn:focus-visible {
+      outline: 2px solid var(--color-text-primary);
+      outline-offset: 3px;
+    }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .btn--primary {
+      background: var(--color-surface-raised);
+      color: var(--color-surface-muted);
+    }
+    .btn--primary:hover  { background: #0b3d8a; }
+    .btn--primary:active { background: #093174; transform: translateY(1px); }
+
+    .btn--ghost {
+      background: transparent;
+      color: var(--color-text-secondary);
+      border: 1px solid var(--color-surface-strong);
+    }
+    .btn--ghost:hover { background: var(--color-surface-strong); }
+
+    .btn--pill {
+      border-radius: var(--radius-md);
+      padding: var(--space-4) var(--space-8);
+      font-size: var(--font-size-lg);
+    }
+
+    .btn--inverse {
+      background: var(--color-surface-muted);
+      color: var(--color-surface-raised);
+      border-radius: var(--radius-md);
+      padding: var(--space-5) var(--space-8);
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+    }
+    .btn--inverse:hover { opacity: 0.9; }
+    .btn--inverse:focus-visible {
+      outline: 2px solid var(--color-surface-muted);
+      outline-offset: 3px;
+    }
+
+    /* ============================================================
+       Navigation
+       ============================================================ */
+    .nav {
+      background: var(--color-surface-muted);
+      border-bottom: 1px solid var(--color-surface-strong);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 48px;
+    }
+
+    .nav__logo {
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: var(--color-text-secondary);
+      text-decoration: none;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .nav__logo:hover { opacity: 1; }
+    .nav__logo:focus-visible {
+      outline: 2px solid var(--color-text-primary);
+      outline-offset: 3px;
+      border-radius: var(--radius-xs);
+    }
+
+    .nav__logo-mark {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      background: var(--color-surface-raised);
+      border-radius: 5px;
+      position: relative;
+    }
+    .nav__logo-mark::after {
+      content: 'W';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: var(--font-size-xs);
+      font-weight: 700;
+      line-height: 20px;
+      text-align: center;
+    }
+
+    .nav__links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-7);
+      list-style: none;
+    }
+    .nav__links a {
+      font-size: var(--font-size-md);
+      color: var(--color-text-muted);
+      text-decoration: none;
+      transition: color var(--motion-instant) ease;
+    }
+    .nav__links a:hover { color: var(--color-text-secondary); }
+    .nav__links a:focus-visible {
+      outline: 2px solid var(--color-text-primary);
+      outline-offset: 2px;
+      border-radius: var(--radius-xs);
+    }
+
+    /* ============================================================
+       Hero
+       ============================================================ */
+    .hero {
+      background: var(--color-surface-base);
+      color: var(--color-surface-muted);
+      padding: 72px 0 64px;
+    }
+
+    .hero__inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-8);
+      align-items: center;
+    }
+
+    .hero__badge {
+      display: inline-block;
+      background: var(--color-surface-raised);
+      color: var(--color-surface-muted);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-xs);
+      margin-bottom: var(--space-5);
+    }
+
+    .hero__title {
+      font-size: var(--font-size-3xl);
+      font-weight: 700;
+      line-height: 1.1;
+      color: var(--color-surface-muted);
+      letter-spacing: -0.035em;
+      margin-bottom: var(--space-6);
+    }
+
+    .hero__title mark {
+      background: none;
+      color: #6ba3ff;
+    }
+
+    .hero__desc {
+      font-size: var(--font-size-xl);
+      line-height: 1.55;
+      color: rgba(255,255,255,0.68);
+      margin-bottom: var(--space-7);
+      font-weight: 400;
+    }
+
+    .hero__note {
+      margin-top: var(--space-4);
+      font-size: var(--font-size-sm);
+      color: rgba(255,255,255,0.38);
+      line-height: 1.5;
+    }
+
+    /* Browser mockup */
+    .browser {
+      background: #13132b;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-2), 0 0 0 1px rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+
+    .browser__bar {
+      background: #1e1e38;
+      padding: var(--space-3) var(--space-5);
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .browser__dots {
+      display: flex;
+      gap: var(--space-2);
+      flex-shrink: 0;
+    }
+
+    .browser__dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .browser__dot:nth-child(1) { background: #ff5f56; }
+    .browser__dot:nth-child(2) { background: #ffbd2e; }
+    .browser__dot:nth-child(3) { background: #27c93f; }
+
+    .browser__url {
+      flex: 1;
+      background: #13132b;
+      border-radius: var(--radius-xs);
+      padding: var(--space-1) var(--space-4);
+      font-size: var(--font-size-sm);
+      color: rgba(255,255,255,0.35);
+      font-family: monospace;
+    }
+
+    .browser__content {
+      padding: var(--space-7);
+      color: rgba(255,255,255,0.72);
+      font-size: var(--font-size-lg);
+      line-height: 1.72;
+    }
+
+    .hl {
+      background: rgba(255,213,0,0.28);
+      border-bottom: 2px solid #ffd500;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+
+    .hl--mastered {
+      background: rgba(39,201,63,0.2);
+      border-bottom: 2px solid #27c93f;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+
+    .browser__legend {
+      display: flex;
+      gap: var(--space-5);
+      margin-top: var(--space-5);
+      font-size: var(--font-size-xs);
+      color: rgba(255,255,255,0.4);
+    }
+
+    .legend-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-xs);
+    }
+
+    .legend-pill--learn   { background: rgba(255,213,0,0.15); border: 1px solid rgba(255,213,0,0.3); }
+    .legend-pill--mastered{ background: rgba(39,201,63,0.12); border: 1px solid rgba(39,201,63,0.25); }
+
+    /* ============================================================
+       Stats strip
+       ============================================================ */
+    .stats-strip {
+      background: var(--color-surface-strong);
+      border-bottom: 1px solid #d0d0e8;
+      padding: var(--space-5) 0;
+    }
+
+    .stats-strip__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stat {
+      text-align: center;
+      flex: 1;
+    }
+
+    .stat__number {
+      display: block;
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--color-surface-raised);
+      letter-spacing: -0.04em;
+      line-height: 1;
+    }
+
+    .stat__label {
+      display: block;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+      margin-top: var(--space-1);
+    }
+
+    .stat-sep {
+      width: 1px;
+      height: 36px;
+      background: #c0c0d8;
+    }
+
+    /* ============================================================
+       Sections
+       ============================================================ */
+    .section {
+      padding: 64px 0;
+    }
+
+    .section--alt {
+      background: var(--color-surface-strong);
+    }
+
+    .section__eyebrow {
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-surface-raised);
+      margin-bottom: var(--space-4);
+    }
+
+    .section__title {
+      font-size: var(--font-size-2xl);
+      font-weight: 700;
+      color: var(--color-text-secondary);
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: var(--space-4);
+    }
+
+    .section__lead {
+      font-size: var(--font-size-xl);
+      color: var(--color-text-muted);
+      line-height: 1.55;
+      max-width: 520px;
+    }
+
+    /* ============================================================
+       Feature grid
+       ============================================================ */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-5);
+      margin-top: 48px;
+    }
+
+    .feature-card {
+      background: var(--color-surface-muted);
+      border: 1px solid var(--color-surface-strong);
+      border-radius: var(--radius-sm);
+      padding: var(--space-7);
+      box-shadow: var(--shadow-1);
+      transition: box-shadow var(--motion-instant) ease,
+                  transform  var(--motion-instant) ease;
+    }
+    .feature-card:hover {
+      box-shadow: var(--shadow-2);
+      transform: translateY(-2px);
+    }
+    .feature-card:focus-within {
+      outline: 2px solid var(--color-text-primary);
+      outline-offset: 2px;
+    }
+
+    .feature-card__icon {
+      width: 36px;
+      height: 36px;
+      background: var(--color-surface-strong);
+      border-radius: var(--radius-xs);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: var(--space-5);
+      font-size: var(--font-size-xl);
+    }
+
+    .feature-card__title {
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-3);
+      letter-spacing: -0.01em;
+    }
+
+    .feature-card__desc {
+      font-size: var(--font-size-md);
+      color: var(--color-text-muted);
+      line-height: 1.65;
+    }
+
+    /* ============================================================
+       Steps
+       ============================================================ */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-7);
+      margin-top: 48px;
+      position: relative;
+    }
+
+    .steps::before {
+      content: '';
+      position: absolute;
+      top: 20px;
+      left: calc(33.33% / 2);
+      right: calc(33.33% / 2);
+      height: 1px;
+      background: linear-gradient(to right, var(--color-surface-raised), transparent, var(--color-surface-raised));
+      opacity: 0.3;
+    }
+
+    .step {
+      text-align: center;
+      position: relative;
+    }
+
+    .step__num {
+      width: 40px;
+      height: 40px;
+      background: var(--color-surface-raised);
+      color: var(--color-surface-muted);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      margin: 0 auto var(--space-5);
+    }
+
+    .step__title {
+      font-size: var(--font-size-lg);
+      font-weight: 700;
+      color: var(--color-text-secondary);
+      margin-bottom: var(--space-3);
+    }
+
+    .step__desc {
+      font-size: var(--font-size-md);
+      color: var(--color-text-muted);
+      line-height: 1.65;
+    }
+
+    /* ============================================================
+       Privacy callout
+       ============================================================ */
+    .privacy-callout {
+      max-width: 560px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    .privacy-callout .section__lead {
+      max-width: none;
+    }
+
+    /* ============================================================
+       CTA
+       ============================================================ */
+    .cta {
+      background: var(--color-surface-raised);
+      padding: 64px 0;
+      text-align: center;
+    }
+
+    .cta__title {
+      font-size: var(--font-size-3xl);
+      font-weight: 700;
+      color: var(--color-surface-muted);
+      letter-spacing: -0.035em;
+      line-height: 1.1;
+      margin-bottom: var(--space-5);
+    }
+
+    .cta__sub {
+      font-size: var(--font-size-xl);
+      color: rgba(255,255,255,0.72);
+      margin-bottom: var(--space-7);
+    }
+
+    .cta__note {
+      margin-top: var(--space-5);
+      font-size: var(--font-size-sm);
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ============================================================
+       Footer
+       ============================================================ */
+    .footer {
+      border-top: 1px solid var(--color-surface-strong);
+      padding: var(--space-7) 0;
+    }
+
+    .footer__inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer__copy {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+    }
+
+    .footer__links {
+      display: flex;
+      gap: var(--space-6);
+      list-style: none;
+    }
+
+    .footer__links a {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+      text-decoration: none;
+    }
+    .footer__links a:hover { color: var(--color-text-primary); }
+
+    /* ============================================================
+       Responsive
+       ============================================================ */
+    @media (max-width: 768px) {
+      .hero__inner  { grid-template-columns: 1fr; }
+      .browser      { display: none; }
+      .hero__title  { font-size: var(--font-size-2xl); }
+      .features     { grid-template-columns: 1fr; }
+      .steps        { grid-template-columns: 1fr; }
+      .steps::before{ display: none; }
+      .stats-strip__inner { flex-wrap: wrap; gap: var(--space-5); justify-content: center; }
+      .stat-sep     { display: none; }
+      .nav__links   { display: none; }
+      .footer__inner{ flex-direction: column; gap: var(--space-5); text-align: center; }
+      .cta__title   { font-size: var(--font-size-2xl); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ====================== Navigation ====================== -->
+  <nav class="nav" role="navigation" aria-label="Main navigation">
+    <div class="container">
+      <div class="nav__inner">
+        <a href="#" class="nav__logo" aria-label="Word Highlighter home">
+          <span class="nav__logo-mark" aria-hidden="true"></span>
+          Word Highlighter
+        </a>
+        <ul class="nav__links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how-it-works">How it works</a></li>
+          <li><a href="#privacy">Privacy</a></li>
+        </ul>
+        <a href="#" class="btn btn--primary" role="button">Add to Chrome</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ====================== Hero ====================== -->
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="container">
+      <div class="hero__inner">
+
+        <div>
+          <span class="hero__badge">Chrome Extension · Free · v1.4.1</span>
+          <h1 class="hero__title" id="hero-title">
+            Turn every webpage into a <mark>vocabulary lesson</mark>
+          </h1>
+          <p class="hero__desc">
+            Word Highlighter highlights your study words as you browse, tracks how often you see them, and helps you move from "vaguely familiar" to genuinely mastered.
+          </p>
+          <a href="#" class="btn btn--primary btn--pill" role="button">
+            Add to Chrome — It's Free
+          </a>
+          <p class="hero__note">Works on every website &nbsp;·&nbsp; No account needed &nbsp;·&nbsp; All data stays local</p>
+        </div>
+
+        <div class="browser" role="img" aria-label="Word Highlighter highlighting vocabulary words on a news article">
+          <div class="browser__bar">
+            <div class="browser__dots" aria-hidden="true">
+              <div class="browser__dot"></div>
+              <div class="browser__dot"></div>
+              <div class="browser__dot"></div>
+            </div>
+            <div class="browser__url">nytimes.com/science/environment</div>
+          </div>
+          <div class="browser__content">
+            <p>
+              The <span class="hl">resilience</span> of coral reefs has long
+              <span class="hl--mastered">fascinated</span> marine biologists.
+              Despite rising ocean temperatures, some reefs show remarkable
+              <span class="hl">tenacity</span>, adapting to <span class="hl">adversity</span>
+              in ways scientists are only beginning to
+              <span class="hl--mastered">comprehend</span>.
+            </p>
+            <div class="browser__legend" aria-hidden="true">
+              <span class="legend-pill legend-pill--learn">&#9632; To learn</span>
+              <span class="legend-pill legend-pill--mastered">&#9632; Mastered</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== Stats strip ====================== -->
+  <div class="stats-strip" role="region" aria-label="Extension at a glance">
+    <div class="container">
+      <div class="stats-strip__inner">
+        <div class="stat">
+          <span class="stat__number">5,000+</span>
+          <span class="stat__label">Built-in vocabulary words</span>
+        </div>
+        <div class="stat-sep" role="separator" aria-hidden="true"></div>
+        <div class="stat">
+          <span class="stat__number">Any site</span>
+          <span class="stat__label">Highlights across all webpages</span>
+        </div>
+        <div class="stat-sep" role="separator" aria-hidden="true"></div>
+        <div class="stat">
+          <span class="stat__number">0 signup</span>
+          <span class="stat__label">No account required</span>
+        </div>
+        <div class="stat-sep" role="separator" aria-hidden="true"></div>
+        <div class="stat">
+          <span class="stat__number">100% local</span>
+          <span class="stat__label">Data never leaves your device</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================== Features ====================== -->
+  <section class="section" id="features" aria-labelledby="features-title">
+    <div class="container">
+      <p class="section__eyebrow">Features</p>
+      <h2 class="section__title" id="features-title">Everything you need to build vocabulary</h2>
+      <p class="section__lead">No flashcard app required. Word Highlighter turns your existing reading habit into a learning system.</p>
+
+      <div class="features" role="list">
+
+        <article class="feature-card" role="listitem">
+          <div class="feature-card__icon" aria-hidden="true">&#9670;</div>
+          <h3 class="feature-card__title">Auto-highlight on every page</h3>
+          <p class="feature-card__desc">
+            Your vocabulary words are highlighted the moment a page loads — yellow for words to learn, green for mastered. Zero interaction required.
+          </p>
+        </article>
+
+        <article class="feature-card" role="listitem">
+          <div class="feature-card__icon" aria-hidden="true">&#9638;</div>
+          <h3 class="feature-card__title">Frequency tracking and context</h3>
+          <p class="feature-card__desc">
+            See how often each word appears across your browsing sessions. Read the full sentence it appeared in — real-world context is the fastest path to retention.
+          </p>
+        </article>
+
+        <article class="feature-card" role="listitem">
+          <div class="feature-card__icon" aria-hidden="true">&#10003;</div>
+          <h3 class="feature-card__title">Mastered word management</h3>
+          <p class="feature-card__desc">
+            Mark words you've learned to move them out of your active list. Export your mastered word list anytime. Progress persists across sessions via local storage.
+          </p>
+        </article>
+
+        <article class="feature-card" role="listitem">
+          <div class="feature-card__icon" aria-hidden="true">&#8853;</div>
+          <h3 class="feature-card__title">Right-click to add any word</h3>
+          <p class="feature-card__desc">
+            Encounter a word while reading? Right-click and add it to your vocabulary list in one step. Build a personalized word set without leaving the page.
+          </p>
+        </article>
+
+        <article class="feature-card" role="listitem">
+          <div class="feature-card__icon" aria-hidden="true">&#9632;</div>
+          <h3 class="feature-card__title">Built-in definitions</h3>
+          <p class="feature-card__desc">
+            Word Highlighter fetches definitions automatically from multiple dictionary APIs with local caching as fallback. Fewer "no definition found" results.
+          </p>
+        </article>
+
+        <article class="feature-card" role="listitem">
+          <div class="feature-card__icon" aria-hidden="true">&#9675;</div>
+          <h3 class="feature-card__title">Site whitelist control</h3>
+          <p class="feature-card__desc">
+            Prefer to learn only on news or educational sites? Enable whitelist mode and choose exactly where highlighting appears. Easy to toggle from the popup.
+          </p>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== How it works ====================== -->
+  <section class="section section--alt" id="how-it-works" aria-labelledby="steps-title">
+    <div class="container">
+      <p class="section__eyebrow">How it works</p>
+      <h2 class="section__title" id="steps-title">Three steps. No learning curve.</h2>
+
+      <div class="steps" role="list">
+
+        <div class="step" role="listitem">
+          <div class="step__num" aria-hidden="true">1</div>
+          <h3 class="step__title">Install the extension</h3>
+          <p class="step__desc">
+            Add Word Highlighter to Chrome from the Web Store. It activates immediately — no configuration, no account, no form to fill out.
+          </p>
+        </div>
+
+        <div class="step" role="listitem">
+          <div class="step__num" aria-hidden="true">2</div>
+          <h3 class="step__title">Browse normally</h3>
+          <p class="step__desc">
+            Read news, articles, or any website you already visit. Your vocabulary words highlight automatically in the background.
+          </p>
+        </div>
+
+        <div class="step" role="listitem">
+          <div class="step__num" aria-hidden="true">3</div>
+          <h3 class="step__title">Track and master</h3>
+          <p class="step__desc">
+            Open the stats view to see which words appear most. Mark words mastered as your confidence grows. Your list adapts with you.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== Privacy ====================== -->
+  <section class="section" id="privacy" aria-labelledby="privacy-title">
+    <div class="container">
+      <div class="privacy-callout">
+        <p class="section__eyebrow">Privacy</p>
+        <h2 class="section__title" id="privacy-title">Your data never leaves your device</h2>
+        <p class="section__lead">
+          All word lists, statistics, and mastered words are stored in Chrome's local storage. Word Highlighter does not contact external servers with your data. No tracking. No analytics. No account.
+        </p>
+        <p style="margin-top: var(--space-5);">
+          <a href="privacy_policy.html">Read the full privacy policy</a>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================== CTA ====================== -->
+  <section class="cta" aria-labelledby="cta-title">
+    <div class="container">
+      <h2 class="cta__title" id="cta-title">Start learning from what you already read</h2>
+      <p class="cta__sub">Free. No account. Works immediately after install.</p>
+      <a href="#" class="btn btn--inverse" role="button">
+        Add to Chrome
+      </a>
+      <p class="cta__note">v1.4.1 &nbsp;·&nbsp; Chrome Web Store &nbsp;·&nbsp; WCAG 2.2 AA</p>
+    </div>
+  </section>
+
+  <!-- ====================== Footer ====================== -->
+  <footer class="footer" role="contentinfo">
+    <div class="container">
+      <div class="footer__inner">
+        <p class="footer__copy">&copy; 2025 Word Highlighter. All rights reserved.</p>
+        <ul class="footer__links">
+          <li><a href="privacy_policy.html">Privacy Policy</a></li>
+          <li><a href="#">Chrome Web Store</a></li>
+          <li><a href="#">Feedback</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
