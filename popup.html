@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Word Highlighter</title>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-light: #818cf8;
+      --primary-dark: #4f46e5;
+      --success: #10b981;
+      --success-light: #34d399;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --radius: 12px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--gray-50);
+      width: 340px;
+      min-height: 420px;
+      color: var(--gray-800);
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .header-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      font-size: 24px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--gray-900);
+      letter-spacing: -0.025em;
+    }
+
+    .header p {
+      font-size: 13px;
+      color: var(--gray-500);
+      margin-top: 4px;
+    }
+
+    /* Menu Items */
+    .menu {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      padding: 14px 16px;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      text-decoration: none;
+      color: var(--gray-700);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .menu-item:hover {
+      border-color: var(--primary-light);
+      background: var(--gray-50);
+      transform: translateY(-1px);
+      box-shadow: var(--shadow);
+    }
+
+    .menu-item:active {
+      transform: translateY(0);
+    }
+
+    .menu-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+
+    .menu-icon.stats {
+      background: #ede9fe;
+      color: #7c3aed;
+    }
+
+    .menu-icon.mastered {
+      background: #d1fae5;
+      color: #059669;
+    }
+
+    .menu-content {
+      flex: 1;
+    }
+
+    .menu-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-800);
+      margin-bottom: 2px;
+    }
+
+    .menu-desc {
+      font-size: 12px;
+      color: var(--gray-500);
+    }
+
+    .menu-arrow {
+      color: var(--gray-400);
+      font-size: 14px;
+    }
+
+    /* Settings Section */
+    .settings-section {
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .settings-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-700);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Toggle Switch */
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--gray-300);
+      border-radius: 24px;
+      transition: 0.3s;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: 0.3s;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background: var(--primary);
+    }
+
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Status Bar */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--gray-50);
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+
+    .status-text {
+      font-size: 12px;
+      color: var(--gray-600);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-indicator.active {
+      background: var(--success);
+    }
+
+    .status-indicator.inactive {
+      background: var(--gray-400);
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-outline {
+      background: white;
+      color: var(--gray-700);
+      border: 1px solid var(--gray-300);
+    }
+
+    .btn-outline:hover {
+      background: var(--gray-50);
+      border-color: var(--gray-400);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .btn-danger {
+      background: white;
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+
+    .btn-danger:hover {
+      background: #fef2f2;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-full {
+      width: 100%;
+    }
+
+    /* Message */
+    .message-area {
+      margin-top: 16px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: center;
+      display: none;
+    }
+
+    .message-success {
+      display: block;
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .message-error {
+      display: block;
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .message-warning {
+      display: block;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--gray-200);
+      text-align: center;
+    }
+
+    .footer-text {
+      font-size: 11px;
+      color: var(--gray-400);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="header-icon">📚</div>
+      <h1>Word Highlighter</h1>
+      <p>Highlight and learn vocabulary</p>
+    </div>
+
+    <!-- Menu -->
+    <div class="menu">
+      <a href="stats.html" class="menu-item" target="_blank">
+        <div class="menu-icon stats">📊</div>
+        <div class="menu-content">
+          <div class="menu-title">Word Statistics</div>
+          <div class="menu-desc">View word frequency data</div>
+        </div>
+        <span class="menu-arrow">→</span>
+      </a>
+
+      <a href="mastered.html" class="menu-item" target="_blank">
+        <div class="menu-icon mastered">✓</div>
+        <div class="menu-content">
+          <div class="menu-title">Mastered Words</div>
+          <div class="menu-desc">Manage learned vocabulary</div>
+        </div>
+        <span class="menu-arrow">→</span>
+      </a>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings-section">
+      <div class="settings-header">
+        <span class="settings-title">
+          <span>🌐</span> Site Whitelist
+        </span>
+        <label class="toggle">
+          <input type="checkbox" id="whitelistToggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="status-bar">
+        <span class="status-text">
+          <span class="status-indicator inactive" id="statusIndicator"></span>
+          <span id="statusText">Current site</span>
+        </span>
+      </div>
+
+      <div class="btn-group">
+        <button id="toggleWhitelistBtn" class="btn btn-outline btn-full">
+          Add to Whitelist
+        </button>
+        <button id="manageWhitelistBtn" class="btn btn-outline">
+          Manage
+        </button>
+      </div>
+    </div>
+
+    <!-- Message -->
+    <div id="messageArea" class="message-area"></div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span class="footer-text">v1.4.0</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

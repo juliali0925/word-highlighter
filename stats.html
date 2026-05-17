@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Word Statistics</title>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-light: #818cf8;
+      --primary-dark: #4f46e5;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-400: #9ca3af;
+      --gray-500: #6b7280;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+      --radius: 12px;
+      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--gray-50);
+      color: var(--gray-800);
+      min-height: 100vh;
+      padding: 32px;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+      letter-spacing: -0.025em;
+    }
+
+    .header p {
+      color: var(--gray-500);
+      font-size: 15px;
+    }
+
+    /* Card */
+    .card {
+      background: white;
+      border-radius: var(--radius);
+      border: 1px solid var(--gray-200);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* Search */
+    .search-box {
+      position: relative;
+      flex: 1;
+      max-width: 320px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 10px 40px 10px 14px;
+      border: 1px solid var(--gray-200);
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s;
+      background: var(--gray-50);
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary);
+      background: white;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .search-box input::placeholder {
+      color: var(--gray-400);
+    }
+
+    .search-icon {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--gray-400);
+      font-size: 14px;
+    }
+
+    .clear-search-btn {
+      position: absolute;
+      right: 36px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--gray-400);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px;
+      display: none;
+    }
+
+    .clear-search-btn:hover {
+      color: var(--gray-600);
+    }
+
+    .search-stats {
+      color: var(--gray-500);
+      font-size: 13px;
+    }
+
+    .search-highlight {
+      background: #fef3c7;
+      color: #92400e;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-weight: 500;
+    }
+
+    /* Table */
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      background: var(--gray-50);
+      padding: 12px 20px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-500);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    th:nth-child(2) { text-align: center; width: 100px; }
+    th:nth-child(4) { text-align: center; width: 120px; }
+
+    td {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--gray-100);
+      font-size: 14px;
+      color: var(--gray-700);
+    }
+
+    td:first-child {
+      font-weight: 600;
+      color: var(--gray-900);
+    }
+
+    td:nth-child(2) { text-align: center; }
+    td:nth-child(4) { text-align: center; }
+
+    tr:hover {
+      background: var(--gray-50);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Badge */
+    .count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px;
+      height: 24px;
+      padding: 0 8px;
+      background: var(--gray-100);
+      color: var(--gray-700);
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Sentence */
+    .sentence-text {
+      color: var(--gray-500);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-outline {
+      background: white;
+      color: var(--gray-700);
+      border: 1px solid var(--gray-300);
+    }
+
+    .btn-outline:hover {
+      background: var(--gray-50);
+      border-color: var(--gray-400);
+    }
+
+    .btn-danger {
+      background: white;
+      color: var(--danger);
+      border: 1px solid var(--danger);
+    }
+
+    .btn-danger:hover {
+      background: #fef2f2;
+    }
+
+    .mastered-btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mastered-btn:hover {
+      background: var(--primary-dark);
+    }
+
+    /* Pagination */
+    .card-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .pagination-info {
+      color: var(--gray-500);
+      font-size: 13px;
+    }
+
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pagination-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: white;
+      border: 1px solid var(--gray-200);
+      border-radius: 6px;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 12px;
+    }
+
+    .pagination-btn:hover:not(:disabled) {
+      background: var(--gray-50);
+      border-color: var(--gray-300);
+    }
+
+    .pagination-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .pagination-current {
+      padding: 0 12px;
+      font-size: 13px;
+      color: var(--gray-600);
+    }
+
+    .pagination-current span {
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    /* Action Buttons */
+    .action-bar {
+      margin-top: 24px;
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--gray-500);
+    }
+
+    .empty-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-text {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--gray-600);
+      margin-bottom: 4px;
+    }
+
+    .empty-subtext {
+      font-size: 14px;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body {
+        padding: 16px;
+      }
+
+      .header h1 {
+        font-size: 24px;
+      }
+
+      .card-header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .search-box {
+        max-width: none;
+      }
+
+      th, td {
+        padding: 12px 16px;
+      }
+
+      .card-footer {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>Word Statistics</h1>
+      <p>Track your learning progress</p>
+    </div>
+
+    <!-- Main Card -->
+    <div class="card">
+      <!-- Search & Filter -->
+      <div class="card-header">
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="Search words..." autocomplete="off" />
+          <button id="clearSearchBtn" class="clear-search-btn">✕</button>
+          <span class="search-icon">🔍</span>
+        </div>
+        <div class="search-stats">
+          <span id="searchResultsCount">Showing all words</span>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Word</th>
+              <th>Count</th>
+              <th>Last Sentence</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="statsTable">
+            <!-- Populated by stats.js -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      <div class="card-footer">
+        <div class="pagination-info">
+          <span id="paginationInfo">Showing 1-50 of 0 entries</span>
+        </div>
+        <div class="pagination-controls">
+          <button id="firstPageBtn" class="pagination-btn" title="First">⏮</button>
+          <button id="prevPageBtn" class="pagination-btn" title="Previous">◀</button>
+          <span class="pagination-current">
+            Page <span id="currentPage">1</span> / <span id="totalPages">1</span>
+          </span>
+          <button id="nextPageBtn" class="pagination-btn" title="Next">▶</button>
+          <button id="lastPageBtn" class="pagination-btn" title="Last">⏭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-bar">
+      <button id="clearStatsBtn" class="btn btn-danger">Clear Statistics</button>
+      <button id="importWordsBtn" class="btn btn-outline">📥 Import Words</button>
+      <a href="mastered.html" style="text-decoration: none;">
+        <button class="btn btn-primary">📋 Mastered Words</button>
+      </a>
+    </div>
+  </div>
+
+  <script src="stats.js"></script>
+</body>
+</html>
