@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Word Highlighter - Vocabulary Builder",
   "short_name": "Word Highlighter",
-  "version": "1.4.0",
+  "version": "1.4.2",
   "description": "Highlight your vocabulary words on any webpage. Track word frequency, manage mastered words, and build your vocabulary effortlessly.",
   "permissions": ["storage", "activeTab", "tabs", "contextMenus"],
   "host_permissions": ["http://*/*", "https://*/*"],
@@ -29,7 +29,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["words.json", "stats.html", "stats.js", "mastered.html", "mastered.js", "whitelist.html", "whitelist.js", "translations.js"],
+      "resources": ["words.json", "stats.html", "stats.js", "mastered.html", "mastered.js", "whitelist.html", "whitelist.js", "translations.js", "onboarding.html", "onboarding.js"],
       "matches": ["http://*/*", "https://*/*"]
     }
   ],

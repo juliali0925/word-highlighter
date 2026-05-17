@@ -48,6 +48,16 @@ function createContextMenus() {
 chrome.runtime.onInstalled.addListener(() => {
   createContextMenus();
   setupContextMenuListeners();
+
+  // Show onboarding on first install
+  chrome.storage.local.get(['onboardingCompleted'], (result) => {
+    if (!result.onboardingCompleted) {
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('onboarding.html')
+      });
+      chrome.storage.local.set({ onboardingCompleted: true });
+    }
+  });
 });
 
 // 在扩展启动时也创建菜单

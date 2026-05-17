@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to Word Highlighter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary:      #0e4aa4;
+      --primary-dark: #0b3d8a;
+      --success:      #10b981;
+      --warning:      #f59e0b;
+      --bg:           #ffffff;
+      --bg-page:      #f5f6fb;
+      --bg-strong:    #e4e4f2;
+      --border:       #d0d0e8;
+      --text-base:    #212529;
+      --text-muted:   #666666;
+      --text-heading: #0a0a0a;
+      --radius-xs:    9px;
+      --radius-sm:    18px;
+      --radius-md:    9999px;
+      --shadow:       rgba(0,0,0,0) 0px 0px 0px 0px, rgba(0,0,0,0) 0px 0px 0px 0px, rgba(0,0,0,0.08) 0px 4px 16px 0px;
+      --motion:       200ms;
+      --motion-fast:  300ms;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans', Helvetica, sans-serif;
+      background: var(--bg-page);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--text-base);
+    }
+
+    .container {
+      background: var(--bg);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      max-width: 500px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    /* Progress bar */
+    .progress-bar { height: 3px; background: var(--bg-strong); position: relative; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--primary); transition: width var(--motion-fast) ease; }
+
+    /* Slides */
+    .slides-wrapper { position: relative; overflow: hidden; min-height: 500px; }
+
+    .slide {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      transition: opacity var(--motion-fast) ease;
+      padding: 52px 36px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .slide.active { opacity: 1; position: relative; }
+
+    /* Icon */
+    .slide-icon { font-size: 72px; margin-bottom: 22px; }
+    .slide-icon.no-animation { animation: none; }
+
+    /* Text */
+    .slide h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 14px;
+      letter-spacing: -0.025em;
+    }
+
+    .slide p { font-size: 13.5px; color: var(--text-muted); line-height: 1.65; margin-bottom: 10px; }
+
+    .slide-description { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+
+    /* Feature list */
+    .feature-list {
+      text-align: left;
+      background: var(--bg-page);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xs);
+      padding: 18px;
+      margin: 20px 0;
+      width: 100%;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 11px;
+    }
+
+    .feature-item:last-child { margin-bottom: 0; }
+
+    .feature-check { color: var(--success); font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+
+    .feature-text { font-size: 13px; color: var(--text-base); line-height: 1.55; }
+    .feature-text strong { color: var(--text-heading); }
+
+    /* Numbered step circles */
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .step-num.success { background: var(--success); font-size: 13px; }
+
+    /* Tip box */
+    .tip-box {
+      background: #fef3c7;
+      border-left: 3px solid var(--warning);
+      padding: 11px 14px;
+      border-radius: var(--radius-xs);
+      margin: 14px 0;
+      font-size: 13px;
+      color: #92400e;
+      text-align: left;
+      width: 100%;
+    }
+
+    /* Navigation */
+    .navigation {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 36px;
+      background: var(--bg-page);
+      border-top: 1px solid var(--border);
+    }
+
+    .dots { display: flex; gap: 7px; }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      cursor: pointer;
+      transition: background var(--motion-fast) ease;
+    }
+
+    .dot.active { background: var(--primary); }
+
+    .buttons { display: flex; gap: 7px; }
+
+    .btn {
+      padding: 9px 18px;
+      border: none;
+      border-radius: var(--radius-xs);
+      font-family: 'Noto Sans', Helvetica, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all var(--motion) ease;
+    }
+
+    .btn-secondary {
+      background: var(--bg);
+      color: var(--text-base);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Progress Bar -->
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <!-- Slides -->
+    <div class="slides-wrapper">
+      <!-- Slide 1: Welcome -->
+      <div class="slide active">
+        <div class="slide-icon">📚</div>
+        <h2>Welcome to Word Highlighter</h2>
+        <p class="slide-description">Your personal vocabulary learning companion</p>
+        <p>Automatically highlight vocabulary words as you browse the web, build your vocabulary effortlessly, and track your learning progress.</p>
+      </div>
+
+      <!-- Slide 2: Core Features -->
+      <div class="slide">
+        <div class="slide-icon">✨</div>
+        <h2>Key Features</h2>
+        <div class="feature-list">
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text"><strong>Auto Highlighting:</strong> Words are highlighted as you browse</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text"><strong>Track Progress:</strong> Monitor word frequency and learning stats</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text"><strong>Mark Mastered:</strong> Move learned words to your mastered list</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text"><strong>Smart Filtering:</strong> Choose which sites to highlight</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 3: How It Works -->
+      <div class="slide">
+        <div class="slide-icon no-animation">🎯</div>
+        <h2>How It Works</h2>
+        <p class="slide-description" style="margin-bottom: 14px;">Three simple steps:</p>
+        <div class="feature-list" style="margin: 0;">
+          <div class="feature-item">
+            <div class="step-num">1</div>
+            <div class="feature-text">Browse normally — words are highlighted automatically</div>
+          </div>
+          <div class="feature-item">
+            <div class="step-num">2</div>
+            <div class="feature-text">Click highlighted words to view definition and sentence</div>
+          </div>
+          <div class="feature-item">
+            <div class="step-num">3</div>
+            <div class="feature-text">Check stats to track your vocabulary progress</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 4: Whitelist Feature -->
+      <div class="slide">
+        <div class="slide-icon no-animation">🌐</div>
+        <h2>Smart Site Filtering</h2>
+        <p class="slide-description">Control where words are highlighted</p>
+        <div class="feature-list">
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text"><strong>Global Mode:</strong> Highlight on all websites (default)</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-check">✓</div>
+            <div class="feature-text"><strong>Whitelist Mode:</strong> Only highlight on specific sites</div>
+          </div>
+        </div>
+        <div class="tip-box">
+          💡 Whitelist mode is useful if you only want to learn in specific contexts like news sites or educational platforms
+        </div>
+      </div>
+
+      <!-- Slide 5: Getting Started -->
+      <div class="slide">
+        <div class="slide-icon no-animation">🚀</div>
+        <h2>You're All Set!</h2>
+        <p>Start using Word Highlighter now:</p>
+        <div class="feature-list" style="margin-top: 20px;">
+          <div class="feature-item">
+            <div class="step-num success">📊</div>
+            <div class="feature-text">Click the extension icon to access <strong>Word Statistics</strong></div>
+          </div>
+          <div class="feature-item">
+            <div class="step-num success">✓</div>
+            <div class="feature-text">View your <strong>Mastered Words</strong> anytime</div>
+          </div>
+          <div class="feature-item">
+            <div class="step-num success">🌐</div>
+            <div class="feature-text">Manage your <strong>Site Whitelist</strong> in settings</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 6: Pin to Browser -->
+      <div class="slide">
+        <div class="slide-icon no-animation">📌</div>
+        <h2>Pin for Easy Access</h2>
+        <p class="slide-description">Find Word Highlighter instantly</p>
+        <div class="feature-list">
+          <div class="feature-item">
+            <div class="step-num">1</div>
+            <div class="feature-text">Click the <strong>puzzle icon</strong> in your browser toolbar</div>
+          </div>
+          <div class="feature-item">
+            <div class="step-num">2</div>
+            <div class="feature-text">Find <strong>"Word Highlighter"</strong> in the list</div>
+          </div>
+          <div class="feature-item">
+            <div class="step-num">3</div>
+            <div class="feature-text">Click the <strong>pin icon</strong> to pin it</div>
+          </div>
+        </div>
+        <div class="tip-box">
+          💡 This makes Word Highlighter always visible next to your address bar — quick and convenient!
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="navigation">
+      <div class="dots" id="dotsContainer"></div>
+      <div class="buttons">
+        <button class="btn btn-secondary" id="prevBtn" style="display: none;">Back</button>
+        <button class="btn btn-primary" id="nextBtn">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="onboarding.js"></script>
+</body>
+</html>

@@ -1,4 +1,14 @@
 document.addEventListener("DOMContentLoaded", function () {
+  // Help button
+  const helpBtn = document.getElementById('helpBtn');
+  if (helpBtn) {
+    helpBtn.addEventListener('click', function() {
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('onboarding.html')
+      });
+    });
+  }
+
   // Main navigation links
   const statsLink = document.querySelector('a[href="stats.html"]');
   const masteredLink = document.querySelector('a[href="mastered.html"]');

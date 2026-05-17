@@ -67,15 +67,15 @@ chrome.storage.local.get(["words", "masteredWords", "whitelist", "whitelistEnabl
 
     // 使用 document_idle 运行时机，页面已经完全准备好，可以直接开始高亮
     
-    fetch(chrome.runtime.getURL("words.json"))
-      .then(response => response.json())
+    loadWordsJson()
       .then(jsonData => {
         const defaultWords = Array.isArray(jsonData.words) ? jsonData.words.map(w => (typeof w === 'object' && w.word) ? w.word : w) : [];
-        
+
         // 合并用户单词和默认单词，去重
+        const masteredLower = masteredWords.map(w => w.toLowerCase());
         const allUnmasteredWords = Array.from(new Set([...userWords, ...defaultWords]))
-          .filter(word => !masteredWords.includes(word));
-        
+          .filter(word => !masteredLower.includes(word.toLowerCase()));
+
         // 保存到全局变量，供 MutationObserver 使用
         globalUnmasteredWords = allUnmasteredWords;
         globalMasteredWords = masteredWords;
@@ -107,60 +107,68 @@ function escapeRegExp(str) {
 // 全局变量用于累积页面统计数据（避免多次调用highlightWords时重置）
 let globalPageStats = {};
 let globalPageLastSentence = {};
-let pendingSavePromise = null; // 用于跟踪待处理的保存操作
+let pendingSavePromise = null;
 
 // 全局变量存储单词列表，供 MutationObserver 使用
 let globalUnmasteredWords = [];
 let globalMasteredWords = [];
 
+// words.json 内存缓存，避免每页重复 fetch + 解析
+let cachedWordsJson = null;
+async function loadWordsJson() {
+  if (cachedWordsJson !== null) return cachedWordsJson;
+  const response = await fetch(chrome.runtime.getURL("words.json"));
+  cachedWordsJson = await response.json();
+  return cachedWordsJson;
+}
+
+// 编译好的正则缓存，避免每次高亮重新编译
+let cachedUnmasteredRegex = null;
+let cachedUnmasteredWords = null;
+let cachedMasteredRegex = null;
+let cachedMasteredWordsKey = null;
+
 // 初始化页面统计变量
 
 // MutationObserver 用于处理动态加载的内容
 let mutationObserver = null;
+let mutationDebounceTimer = null;
+let pendingMutationNodes = [];
 
 function setupMutationObserver() {
   if (mutationObserver) {
-    return; // 已经设置过了
+    return;
   }
-  
+
   mutationObserver = new MutationObserver((mutations) => {
     mutations.forEach(mutation => {
       if (mutation.type === 'childList') {
         mutation.addedNodes.forEach(node => {
-          // 跳过非元素节点
-          if (!node || node.nodeType !== Node.ELEMENT_NODE) {
-            return;
-          }
-          
-          // 跳过已高亮的元素
+          if (!node || node.nodeType !== Node.ELEMENT_NODE) return;
           if (node.classList && (
             node.classList.contains('enladder-highlight') ||
             node.classList.contains('enladder-highlight-mastered')
-          )) {
-            return;
-          }
-          
-          // 跳过脚本、样式等元素
-          if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'META', 'LINK', 'IFRAME'].includes(node.tagName)) {
-            return;
-          }
-          
-          // 对新添加的节点进行高亮
-          if (globalUnmasteredWords.length > 0 || globalMasteredWords.length > 0) {
-            // 使用 requestIdleCallback 避免阻塞
-            if (window.requestIdleCallback) {
-              requestIdleCallback(() => {
-                highlightNewNode(node);
-              }, { timeout: 1000 });
-            } else {
-              setTimeout(() => {
-                highlightNewNode(node);
-              }, 100);
-            }
-          }
+          )) return;
+          if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'META', 'LINK', 'IFRAME'].includes(node.tagName)) return;
+          pendingMutationNodes.push(node);
         });
       }
     });
+
+    // 批量处理，避免每次 DOM 变化都触发
+    clearTimeout(mutationDebounceTimer);
+    mutationDebounceTimer = setTimeout(() => {
+      if ((globalUnmasteredWords.length > 0 || globalMasteredWords.length > 0) && pendingMutationNodes.length > 0) {
+        const nodes = pendingMutationNodes.splice(0);
+        if (window.requestIdleCallback) {
+          requestIdleCallback(() => nodes.forEach(n => highlightNewNode(n)), { timeout: 1000 });
+        } else {
+          nodes.forEach(n => highlightNewNode(n));
+        }
+      } else {
+        pendingMutationNodes = [];
+      }
+    }, 100);
   });
   
   mutationObserver.observe(document.body, {
@@ -292,7 +300,7 @@ function highlightWordsInNode(rootNode, words, isMastered) {
           rt.textContent = "";
           ruby.appendChild(rt);
           
-          // 简单的例句（直接使用文本节点内容）
+          // 简单的Example Sentence（直接使用文本节点内容）
           const sentence = text.trim().length > 200 ? text.trim().substring(0, 200) + '...' : text.trim();
           
           ruby.addEventListener("click", (e) => {
@@ -300,7 +308,7 @@ function highlightWordsInNode(rootNode, words, isMastered) {
             showEnladderStyleCard(word, sentence, isMastered);
           });
           
-          ruby.setAttribute("title", `点击查看 "${word}" 的详细信息`);
+          ruby.setAttribute("title", `Click to view details for "${word}"`);
           fragment.appendChild(ruby);
           
           lastIndex = offset + word.length;
@@ -346,16 +354,28 @@ function highlightWords(words, isMastered = false) {
     // 按长度降序排列，优先匹配长短语
     wordsToProcess.sort((a, b) => b.length - a.length);
 
-    // 构造正则：短语直接匹配，单词加边界
-    const pattern = wordsToProcess.map(w => {
-      if (w.includes(' ')) {
-        return escapeRegExp(w);
+    // 使用缓存的正则，词表未变时不重新编译
+    const cacheKey = wordsToProcess.join('|');
+    let wordRegex;
+    if (isMastered) {
+      if (cachedMasteredWordsKey === cacheKey && cachedMasteredRegex) {
+        wordRegex = cachedMasteredRegex;
       } else {
-        return `\\b${escapeRegExp(w)}\\b`;
+        const pattern = wordsToProcess.map(w => w.includes(' ') ? escapeRegExp(w) : `\\b${escapeRegExp(w)}\\b`).join('|');
+        wordRegex = new RegExp(`(${pattern})`, "gi");
+        cachedMasteredRegex = wordRegex;
+        cachedMasteredWordsKey = cacheKey;
       }
-    }).join('|');
-
-    const wordRegex = new RegExp(`(${pattern})`, "gi");
+    } else {
+      if (cachedUnmasteredWords === cacheKey && cachedUnmasteredRegex) {
+        wordRegex = cachedUnmasteredRegex;
+      } else {
+        const pattern = wordsToProcess.map(w => w.includes(' ') ? escapeRegExp(w) : `\\b${escapeRegExp(w)}\\b`).join('|');
+        wordRegex = new RegExp(`(${pattern})`, "gi");
+        cachedUnmasteredRegex = wordRegex;
+        cachedUnmasteredWords = cacheKey;
+      }
+    }
     
     // 用于临时存储本次高亮的统计结果
     let highlightCount = 0;
@@ -528,7 +548,7 @@ function highlightWords(words, isMastered = false) {
             rt.textContent = "";
             ruby.appendChild(rt);
             
-            // 提取例句（用于点击事件和统计）
+            // 提取Example Sentence（用于点击事件和统计）
             const sentence = extractSentence(text, word, offset);
             
             // 添加点击事件，显示详细卡片（完全模仿Enladder）
@@ -538,7 +558,7 @@ function highlightWords(words, isMastered = false) {
             });
             
             // 悬停时显示简短提示
-            ruby.setAttribute("title", `点击查看 "${word}" 的详细信息`);
+            ruby.setAttribute("title", `Click to view details for "${word}"`);
             
             fragment.appendChild(ruby);
             
@@ -576,8 +596,8 @@ function highlightWords(words, isMastered = false) {
           replaceTextNode(node);
         } else if (node.nodeType === Node.ELEMENT_NODE && 
                    !["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "NOSCRIPT", "META", "LINK", "IFRAME"].includes(node.tagName) &&
-                   !node.classList?.contains('highlighted-word') &&
-                   !node.classList?.contains('highlighted-word-mastered')) {
+                   !node.classList?.contains('enladder-highlight') &&
+                   !node.classList?.contains('enladder-highlight-mastered')) {
           
           // 创建子节点副本以避免在遍历时修改DOM
           const childNodes = [...node.childNodes];
@@ -652,6 +672,8 @@ function refreshHighlight() {
   globalPageStats = {};
   globalPageLastSentence = {};
   pendingSavePromise = null;
+  globalUnmasteredWords = [];
+  globalMasteredWords = [];
   
   // 清除现有的高亮（包括Ruby标签）
   const existingHighlights = document.querySelectorAll('ruby.enladder-highlight, ruby.enladder-highlight-mastered');
@@ -681,15 +703,15 @@ function refreshHighlight() {
     const masteredWords = data.masteredWords || [];
     
     
-    fetch(chrome.runtime.getURL("words.json"))
-      .then(response => response.json())
+    loadWordsJson()
       .then(jsonData => {
         const defaultWords = Array.isArray(jsonData.words) ? jsonData.words.map(w => (typeof w === 'object' && w.word) ? w.word : w) : [];
-        
+
         // 合并用户单词和默认单词，去重，避免重复高亮
+        const masteredLowerRefresh = masteredWords.map(w => w.toLowerCase());
         const allUnmasteredWords = Array.from(new Set([...userWords, ...defaultWords]))
-          .filter(word => !masteredWords.includes(word));
-        
+          .filter(word => !masteredLowerRefresh.includes(word.toLowerCase()));
+
         // 一次性高亮所有未掌握的单词
         if (allUnmasteredWords.length > 0) {
           highlightWords(allUnmasteredWords, false);
@@ -767,11 +789,11 @@ async function markWordAsMasteredFromContextMenu(word) {
       words.splice(wordIndex, 1);
       
       // 添加到已掌握列表
-      if (!masteredWords.includes(word)) {
+      if (!masteredWords.some(w => w.toLowerCase() === word.toLowerCase())) {
         masteredWords.push(word);
         masteredWordsTimestamp[word] = Date.now();
       }
-      
+
       // 删除相关统计数据
       delete wordStats[word.toLowerCase()];
       delete wordLastSentence[word.toLowerCase()];
@@ -786,13 +808,13 @@ async function markWordAsMasteredFromContextMenu(word) {
       });
       
       // 显示成功消息
-      showNotification(`单词 "${word}" 已标记为已掌握`, 'success');
+      showNotification(`单词 "${word}" has been marked as mastered`, 'success');
       
       // 立即更新页面高亮
       updateWordHighlightStyle(word, true);
       
     } else {
-      showNotification(`单词 "${word}" 不在生词本中，无法标记为已掌握`, 'warning');
+      showNotification(`单词 "${word}" is not in the vocabulary list`, 'warning');
     }
     
   } catch (error) { // 静默处理
@@ -979,8 +1001,29 @@ async function getTranslation(word) {
   } catch (error) { // 静默处理
   }
   
-  // 4. 返回默认值
-  return '点击发音按钮查看释义';
+  // 4. 调用 Free Dictionary API
+  try {
+    const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(lowerWord)}`);
+    if (response.ok) {
+      const data = await response.json();
+      const meaning = data[0]?.meanings?.[0];
+      const definition = meaning?.definitions?.[0]?.definition;
+      if (definition) {
+        const partOfSpeech = meaning.partOfSpeech || '';
+        const result = partOfSpeech ? `[${partOfSpeech}] ${definition}` : definition;
+        translationCache[lowerWord] = result;
+        // 写入持久缓存，下次不再请求
+        chrome.storage.local.get(['translationCache']).then(r => {
+          const cache = r.translationCache || {};
+          cache[lowerWord] = result;
+          chrome.storage.local.set({ translationCache: cache });
+        }).catch(() => {});
+        return result;
+      }
+    }
+  } catch (error) { /* 网络错误，静默降级 */ }
+
+  return 'No definition found';
 }
 
 async function showEnladderStyleCard(word, sentence, isMastered) {
@@ -1162,89 +1205,109 @@ async function showEnladderStyleCard(word, sentence, isMastered) {
   `;
   shadow.appendChild(style);
   
-  // 创建弹窗HTML
-  const popupHTML = document.createElement('div');
-  popupHTML.className = 'enladder-popup-overlay';
-  
-  // 获取统计信息
-  let statsHTML = '';
+  // 获取统计信息（count 是数字，安全）
+  let seenCount = 0;
   try {
     const result = await chrome.storage.local.get(['wordStats']);
     const stats = result.wordStats || {};
-    const count = stats[word.toLowerCase()] || 0;
-    
-    if (count > 0) {
-      statsHTML = `
-        <div class="enladder-popup-section">
-          <div class="enladder-popup-section-title">统计</div>
-          <div style="color: #666;">已遇到 <strong style="color: #4CAF50; font-size: 16px;">${count}</strong> 次</div>
-        </div>
-      `;
-    }
-  } catch (error) { // 静默处理
+    seenCount = stats[word.toLowerCase()] || 0;
+  } catch (error) { /* 静默处理 */ }
+
+  // 用 DOM API 构建弹窗，避免 XSS（word 和 sentence 来自页面文本，不能用 innerHTML）
+  const popupHTML = document.createElement('div');
+  popupHTML.className = 'enladder-popup-overlay';
+
+  const popup = document.createElement('div');
+  popup.className = 'enladder-popup';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'enladder-popup-header';
+
+  const headerLeft = document.createElement('div');
+  const wordSpan = document.createElement('span');
+  wordSpan.className = 'enladder-popup-word';
+  wordSpan.textContent = word; // textContent 防 XSS
+  const audioBtn = document.createElement('span');
+  audioBtn.className = 'enladder-popup-audio';
+  audioBtn.title = 'Click to pronounce';
+  audioBtn.textContent = '🔊';
+  headerLeft.appendChild(wordSpan);
+  headerLeft.appendChild(audioBtn);
+
+  const closeBtn = document.createElement('span');
+  closeBtn.className = 'enladder-popup-close';
+  closeBtn.textContent = '×';
+  header.appendChild(headerLeft);
+  header.appendChild(closeBtn);
+  popup.appendChild(header);
+
+  // Example sentence
+  if (sentence) {
+    const sentSection = document.createElement('div');
+    sentSection.className = 'enladder-popup-section';
+    const sentTitle = document.createElement('div');
+    sentTitle.className = 'enladder-popup-section-title';
+    sentTitle.textContent = 'Example Sentence';
+    const sentBody = document.createElement('div');
+    sentBody.className = 'enladder-popup-sentence';
+    sentBody.textContent = sentence; // textContent 防 XSS
+    sentSection.appendChild(sentTitle);
+    sentSection.appendChild(sentBody);
+    popup.appendChild(sentSection);
   }
-  
-  popupHTML.innerHTML = `
-    <div class="enladder-popup">
-      <div class="enladder-popup-header">
-        <div>
-          <span class="enladder-popup-word">${word}</span>
-          <span class="enladder-popup-audio" title="点击发音">🔊</span>
-        </div>
-        <span class="enladder-popup-close">×</span>
-      </div>
-      <div class="enladder-popup-section">
-        <div class="enladder-popup-section-title">中文释义</div>
-        <div class="enladder-popup-translation">${translation}</div>
-      </div>
-      ${sentence ? `
-      <div class="enladder-popup-section">
-        <div class="enladder-popup-section-title">例句</div>
-        <div class="enladder-popup-sentence">${sentence}</div>
-      </div>
-      ` : ''}
-      ${statsHTML}
-      <div class="enladder-popup-actions">
-        ${!isMastered ?
-          `<button class="enladder-popup-button primary" data-action="master">标记为已掌握</button>` :
-          `<button class="enladder-popup-button secondary" data-action="unmaster">移回生词本</button>`
-        }
-      </div>
-    </div>
-  `;
-  
+
+  // Stats
+  if (seenCount > 0) {
+    const statsSection = document.createElement('div');
+    statsSection.className = 'enladder-popup-section';
+    const statsTitle = document.createElement('div');
+    statsTitle.className = 'enladder-popup-section-title';
+    statsTitle.textContent = 'Seen';
+    const statsBody = document.createElement('div');
+    statsBody.style.color = '#666';
+    const countStrong = document.createElement('strong');
+    countStrong.style.cssText = 'color:#4CAF50;font-size:16px;';
+    countStrong.textContent = String(seenCount); // 数字转字符串，安全
+    statsBody.appendChild(document.createTextNode('Encountered '));
+    statsBody.appendChild(countStrong);
+    statsBody.appendChild(document.createTextNode(' time(s)'));
+    statsSection.appendChild(statsTitle);
+    statsSection.appendChild(statsBody);
+    popup.appendChild(statsSection);
+  }
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'enladder-popup-actions';
+  const actionBtn = document.createElement('button');
+  actionBtn.className = `enladder-popup-button ${isMastered ? 'secondary' : 'primary'}`;
+  actionBtn.setAttribute('data-action', isMastered ? 'unmaster' : 'master');
+  actionBtn.textContent = isMastered ? 'Return to Learning' : 'Mark as Mastered';
+  actions.appendChild(actionBtn);
+  popup.appendChild(actions);
+
+  popupHTML.appendChild(popup);
   shadow.appendChild(popupHTML);
   document.body.appendChild(container);
   
   // 添加动画
   setTimeout(() => {
     popupHTML.classList.add('active');
-    const popup = popupHTML.querySelector('.enladder-popup');
-    if (popup) popup.classList.add('active');
+    popup.classList.add('active');
   }, 10);
-  
-  // 绑定事件
-  const closeBtn = popupHTML.querySelector('.enladder-popup-close');
-  closeBtn.addEventListener('click', () => {
+
+  function closePopup() {
     popupHTML.classList.remove('active');
-    const popup = popupHTML.querySelector('.enladder-popup');
-    if (popup) popup.classList.remove('active');
+    popup.classList.remove('active');
     setTimeout(() => container.remove(), 300);
-  });
-  
-  popupHTML.addEventListener('click', (e) => {
-    if (e.target === popupHTML) {
-      popupHTML.classList.remove('active');
-      const popup = popupHTML.querySelector('.enladder-popup');
-      if (popup) popup.classList.remove('active');
-      setTimeout(() => container.remove(), 300);
-    }
-  });
-  
-  // 发音按钮
-  const audioBtn = popupHTML.querySelector('.enladder-popup-audio');
+  }
+
+  // 绑定事件（复用上方已创建的 DOM 引用，不重复 querySelector）
+  closeBtn.addEventListener('click', closePopup);
+  popupHTML.addEventListener('click', (e) => { if (e.target === popupHTML) closePopup(); });
   audioBtn.addEventListener('click', () => speakWord(word));
-  
+
   // 操作按钮
   const actionBtns = popupHTML.querySelectorAll('[data-action]');
   actionBtns.forEach(btn => {
@@ -1293,11 +1356,11 @@ async function markWordAsMasteredFromCard(word) {
     }
     
     // 添加到已掌握列表
-    if (!masteredWords.includes(word)) {
+    if (!masteredWords.some(w => w.toLowerCase() === word.toLowerCase())) {
       masteredWords.push(word);
       masteredWordsTimestamp[word] = Date.now();
     }
-    
+
     // 删除统计数据
     delete wordStats[word.toLowerCase()];
     delete wordLastSentence[word.toLowerCase()];
@@ -1311,7 +1374,7 @@ async function markWordAsMasteredFromCard(word) {
       wordLastSentence
     });
     
-    showNotification(`"${word}" 已标记为已掌握`, 'success');
+    showNotification(`"${word}" has been marked as mastered`, 'success');
     
     // 更新页面高亮
     updateWordHighlightStyle(word, true);
@@ -1330,7 +1393,7 @@ async function unmasterWord(word) {
     let masteredWordsTimestamp = result.masteredWordsTimestamp || {};
     
     // 从已掌握列表移除
-    masteredWords = masteredWords.filter(w => w !== word);
+    masteredWords = masteredWords.filter(w => w.toLowerCase() !== word.toLowerCase());
     delete masteredWordsTimestamp[word];
     
     // 添加回生词本
@@ -1345,7 +1408,7 @@ async function unmasterWord(word) {
       masteredWordsTimestamp
     });
     
-    showNotification(`"${word}" 已移回生词本`, 'success');
+    showNotification(`"${word}" has been returned to learning`, 'success');
     
     // 更新页面高亮
     updateWordHighlightStyle(word, false);
